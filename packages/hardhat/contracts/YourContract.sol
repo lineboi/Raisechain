@@ -1,78 +1,51 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
-
-// Useful for debugging. Remove when deploying to a live network.
 import "hardhat/console.sol";
 
-// Use openzeppelin to inherit battle-tested implementations (ERC20, ERC721, etc)
-// import "@openzeppelin/contracts/access/Ownable.sol";
+contract raiseChain{
+    struct campaign{
+        string title;
+        string description;
+        uint256 goal;
+        uint256 raised;
+        uint256 deadline;
+        address  payable [] beneficiaries;//made array because multiple people can benefit from a single campaign and made it payable to send ethers
+        bool withdrawn; 
+    }
+    enum CampaignStatus { Ongoing, Successful, Failed }
 
-/**
- * A smart contract that allows changing a state variable of the contract and tracking the changes
- * It also allows the owner to withdraw the Ether in the contract
- * @author BuidlGuidl
- */
-contract YourContract {
-    // State Variables
-    address public immutable owner;
-    string public greeting = "Building Unstoppable Apps!!!";
-    bool public premium = false;
-    uint256 public totalCounter = 0;
-    mapping(address => uint) public userGreetingCounter;
+    //making ID to identify each campaign
+    mapping(uint256 => campaign) public campaigns;
+    //track donor contributions campaignid => donor address => amount
+    mapping(uint256 => mapping(address => uint256)) public contributions;
+    //tracking campaign status
+    mapping(uint256 => CampaignStatus) public campaignStatus;
+    uint256 public campaignId=0;//starting from 0 setting campaign id
 
-    // Events: a way to emit log statements from smart contract that can be listened to by external parties
-    event GreetingChange(address indexed greetingSetter, string newGreeting, bool premium, uint256 value);
+    //events
+    event CampainCreates(uint256 campainID,address creator);
+    event DonationReceived(uint256 campaignID,address donor,uint256 amount);
+    event FundsWithdrawn(uint256 campaignID,uint256 amount);
+    event RefundIssued(uint256 campaignID,address donor,uint256 amount);
 
-    // Constructor: Called once on contract deployment
-    // Check packages/hardhat/deploy/00_deploy_your_contract.ts
-    constructor(address _owner) {
-        owner = _owner;
+    //functions
+    function campaignCreate(string memory _title,string memory _description,uint256 _goal,uint256 _duration,address payable [] memory _beneficiaries) public {
+        require(_goal>0,"Goal must be greater than 0");
+        require(_duration>0,"Duration must be greater than 0");
+        campaignId++;
+        campaigns[campaignId]=campaign(_title,_description,_goal,0,block.timestamp+_duration,_beneficiaries,false);
+        campaignStatus[campaignId]=CampaignStatus.Ongoing;
+        emit CampainCreates(campaignId,msg.sender);
     }
 
-    // Modifier: used to define a set of rules that must be met before or after a function is executed
-    // Check the withdraw() function
-    modifier isOwner() {
-        // msg.sender: predefined variable that represents address of the account that called the current function
-        require(msg.sender == owner, "Not the Owner");
-        _;
+    function donate(uint256 _campaignId) public payable{
+        require(bytes(campaigns[_campaignId].title).length >0 ,"campaing is not available");
+        require(campaigns[_campaignId].deadline > block.timestamp, "Campaign has ended");
+        require(campaigns[_campaignId].withdrawn==false,"campain fund have been alread withdrawn");
+        require(msg.value >0,"Donation must be greater than 0");
+        campaigns[_campaignId].raised += msg.value;
+        contributions[_campaignId][msg.sender] += msg.value;
+        emit DonationReceived(_campaignId,msg.sender,msg.value);  
     }
 
-    /**
-     * Function that allows anyone to change the state variable "greeting" of the contract and increase the counters
-     *
-     * @param _newGreeting (string memory) - new greeting to save on the contract
-     */
-    function setGreeting(string memory _newGreeting) public payable {
-        // Print data to the hardhat chain console. Remove when deploying to a live network.
-        console.log("Setting new greeting '%s' from %s", _newGreeting, msg.sender);
-
-        // Change state variables
-        greeting = _newGreeting;
-        totalCounter += 1;
-        userGreetingCounter[msg.sender] += 1;
-
-        // msg.value: built-in global variable that represents the amount of ether sent with the transaction
-        if (msg.value > 0) {
-            premium = true;
-        } else {
-            premium = false;
-        }
-
-        // emit: keyword used to trigger an event
-        emit GreetingChange(msg.sender, _newGreeting, msg.value > 0, msg.value);
-    }
-
-    /**
-     * Function that allows the owner to withdraw all the Ether in the contract
-     * The function can only be called by the owner of the contract as defined by the isOwner modifier
-     */
-    function withdraw() public isOwner {
-        (bool success, ) = owner.call{ value: address(this).balance }("");
-        require(success, "Failed to send Ether");
-    }
-
-    /**
-     * Function that allows the contract to receive ETH
-     */
-    receive() external payable {}
 }
