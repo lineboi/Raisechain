@@ -1,10 +1,10 @@
 "use client";
-
+import Link from "next/link"; 
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4 bg-gray-900">
+    <main className="flex min-h-screen items-center justify-center p-4 bg-gray-100">
       <div className="text-center max-w-2xl p-8 rounded-lg">
-        <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight mb-8">
+        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-700 leading-tight mb-8">
           Now you can Donate to those who faced disaster in a safe and secure way.
           <br />
           <span className="text-teal-400 font-black">RaiseChain</span> is here to help you.
