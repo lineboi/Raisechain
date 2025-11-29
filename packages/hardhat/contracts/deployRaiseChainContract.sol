@@ -20,7 +20,7 @@ contract RaiseChainContract {
     mapping(uint256 => CampaignStatus) public campaignStatus;
     uint256 public nextCampaignId = 1;
 
-    event CampaignCreated(uint256 campaignID, address creator);
+    event CampaignCreated(uint256 campaignID, address creator);className="text-black"
     event DonationReceived(uint256 campaignID, address donor, uint256 amount);
     event FundsWithdrawn(uint256 campaignID, uint256 amount);
     event RefundIssued(uint256 campaignID, address donor, uint256 amount);
