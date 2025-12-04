@@ -1,7 +1,85 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+// --- GLOBAL REFRESH MECHANISM SETUP ---
+// Define the type for the setter function (the state dispatch function)
+type SetRefreshKey = React.Dispatch<React.SetStateAction<number>>;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const setGlobalRefreshKey: SetRefreshKey | null = null;
+
+// NOTE: triggerDashboardRefresh is now defined LOCALLY inside useEffect and exported via window
+
+// --- DATE UTILITY FUNCTION (Exported via window) ---
+const getFutureDate = (days: number): string => {
+  const future = new Date();
+  future.setDate(future.getDate() + days);
+  return future.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-");
+};
+
+// --- MOCK CONFIGURATION (Restored to simple export) ---
+// Removing 'export' keyword from mockCampaignData to resolve TS2344 error,
+// and defining it purely as a global internal variable.
+interface Campaign {
+  id: number;
+  title: string;
+  current: string;
+  amount: string;
+  goal: string;
+  deadline: string;
+}
+
+const mockCampaignData: Campaign[] = [];
+
+// --- WEB3 DATA FETCHING HOOK (SIMULATED) ---
+const useCampaigns = (refreshKey: number) => {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOnChainData = async () => {
+      setLoading(true);
+      console.log(`Simulating fetching campaign list (Refresh Key: ${refreshKey})...`);
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Data is retrieved from the mock storage
+      setCampaigns([...mockCampaignData]);
+      setLoading(false);
+      console.log("Data fetched and ready.");
+    };
+
+    fetchOnChainData();
+  }, [refreshKey]);
+
+  return { campaigns, loading };
+};
+
+// --- METRIC CARDS DATA ---
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const CONTRACT_ABI = [
+  { name: "nextCampaignId", type: "function", outputs: [{ type: "uint256" }], stateMutability: "view" },
+  {
+    name: "getCampaign",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ type: "uint256", name: "_campaignId" }],
+    outputs: [
+      { type: "string", name: "title" },
+      { type: "string", name: "description" },
+      { type: "uint256", name: "goal" },
+      { type: "uint256", name: "raised" },
+      { type: "uint256", name: "deadline" },
+      { type: "address payable[]", name: "beneficiaries" },
+      { type: "bool", name: "withdrawn" },
+    ],
+  },
+];
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const cards = [
   { id: 1, title: "Total Campaigns", number: 10 },
   { id: 2, title: "Active Campaigns", number: 2 },
@@ -18,32 +96,7 @@ const TableTitleData = [
   { id: 5, title: "Deadline" },
 ];
 
-const TableData = [
-  {
-    id: 0,
-    title: "Africa Water Charity",
-    current: "Ongoing",
-    amount: "1.0 ETH",
-    goal: "2.0 ETH",
-    deadline: "01-Dec-2025",
-  },
-  {
-    id: 1,
-    title: "Web3Mates Graduation Fund",
-    current: "Successful",
-    amount: "3.6 ETH",
-    goal: "3.5 ETH",
-    deadline: "15-Nov-2025",
-  },
-  {
-    id: 2,
-    title: "Local Community Events",
-    current: "Failed",
-    amount: "0.1 ETH",
-    goal: "5.0 ETH",
-    deadline: "01-Oct-2025",
-  },
-];
+// --- COMPONENTS ---
 
 interface CampaignCardProps {
   title: string;
@@ -163,49 +216,99 @@ const DonationForm = () => {
 };
 
 export default function HomePage() {
+  // 2. State to trigger fetching and manage metrics
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // 3. Register the setter function globally on mount
+  useEffect(() => {
+    // Define the local trigger function here
+    const localTriggerRefresh = () => {
+      setRefreshKey(prev => prev + 1);
+      console.log("Dashboard refresh triggered locally.");
+    };
+
+    // Register utilities globally on the window object
+    (window as any).setGlobalRefreshKey = setRefreshKey;
+    (window as any).mockCampaignData = mockCampaignData;
+    (window as any).getFutureDate = getFutureDate;
+    (window as any).triggerDashboardRefresh = localTriggerRefresh; // Use local definition
+
+    // Cleanup function (important for unmounting)
+    return () => {
+      (window as any).setGlobalRefreshKey = null;
+    };
+  }, []);
+
+  const { campaigns, loading } = useCampaigns(refreshKey);
+
+  // 4. Dynamic metric calculation
+  const totalCampaigns = campaigns.length;
+  const activeCampaigns = campaigns.filter(c => c.current === "Ongoing").length;
+  const failedCampaigns = campaigns.filter(c => c.current === "Failed").length;
+
+  // Dynamic cards using calculated metrics
+  const dynamicCards = [
+    { id: 1, title: "Total Campaigns", number: totalCampaigns },
+    { id: 2, title: "Active Campaigns", number: activeCampaigns },
+    { id: 3, title: "Failed Campaigns", number: failedCampaigns },
+    { id: 4, title: "Refunds Available", number: 100 },
+  ];
+
   return (
     <main className="bg-gray-100 block min-h-screen p-4 md:p-8 text-gray-800">
+      {/* 1. Dashboard Metrics Section */}
       <div className="mb-10">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Overview</h1>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          {cards.map(card => (
+          {dynamicCards.map(card => (
             <CampaignCard key={card.id} title={card.title} number={card.number} />
           ))}
         </div>
       </div>
 
-      {/* SECTION 2: DETAILS AND ACTIONS (Rearranged) */}
+      {/* SECTION 2: DETAILS AND ACTIONS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 2b. Donation Form (Moved to position 1 in the grid) */}
+        {/* 2b. Donation Form */}
         <div className="lg:col-span-1">
           <DonationForm />
         </div>
 
-        {/* 2a. Campaign Details Table (Moved to position 2 in the grid) */}
+        {/* 2a. Campaign Details Table */}
         <div className="lg:col-span-2">
           <h1 className="text-2xl font-bold text-gray-800 mb-4">Active Campaigns</h1>
 
           <div className="bg-white rounded-lg shadow-xl overflow-x-auto">
             <div className="min-w-[700px]">
+              {/* Table Header Row */}
               <div className="grid grid-cols-6 bg-gray-200 border-b border-gray-300">
                 {TableTitleData.map(ttable => (
                   <TitleTable key={ttable.id} title={ttable.title} />
                 ))}
               </div>
 
+              {/* Data Rows Rendering */}
               <div className="divide-y divide-gray-300">
-                {TableData.map(dtable => (
-                  <DataTabale
-                    key={dtable.id}
-                    no={dtable.id + 1}
-                    title={dtable.title}
-                    amount={dtable.amount}
-                    current={dtable.current}
-                    goal={dtable.goal}
-                    deadline={dtable.deadline}
-                  />
-                ))}
+                {/* LOADING STATE / EMPTY STATE */}
+                {loading && <div className="p-4 text-center text-gray-500">Loading on-chain data...</div>}
+
+                {!loading && campaigns.length === 0 && (
+                  <div className="p-4 text-center text-gray-500">No active campaigns found. Create one now!</div>
+                )}
+
+                {/* MAPPING LIVE CAMPAIGNS */}
+                {!loading &&
+                  campaigns.map((dtable, index) => (
+                    <DataTabale
+                      key={dtable.id}
+                      no={index + 1} // Use index + 1 for row number
+                      title={dtable.title}
+                      amount={dtable.amount}
+                      current={dtable.current}
+                      goal={dtable.goal}
+                      deadline={dtable.deadline}
+                    />
+                  ))}
               </div>
             </div>
           </div>
